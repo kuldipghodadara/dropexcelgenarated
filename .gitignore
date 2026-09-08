@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+out/
+.env
+.env.*
+*.log
+
+# Windows temporary files
+Thumbs.db
+Desktop.ini
+
+# IDE files
+.vscode/
+.idea/

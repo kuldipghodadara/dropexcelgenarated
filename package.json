@@ -1,0 +1,30 @@
+{
+  "name": "dropbox-sku-excel-generator",
+  "version": "1.0.0",
+  "description": "Generate Excel catalogs with Dropbox shared links from SKU folders",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.example.dropboxskugenerator",
+    "productName": "Dropbox SKU Excel Generator",
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dropbox": "^10.46.0",
+    "electron-store": "^8.2.0",
+    "exceljs": "^4.4.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "electron": "^32.1.2",
+    "electron-builder": "^25.1.8"
+  }
+}
