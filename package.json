@@ -6,13 +6,32 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder --win",
+    "build": "electron-builder --win"
   },
   "build": {
     "appId": "com.example.dropboxskugenerator",
     "productName": "Dropbox SKU Excel Generator",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "main.js",
+      "preload.js",
+      "package.json",
+      "logo.ico"
+    ],
     "win": {
-      "target": "nsis"
+      "target": ["nsis", "portable"],
+      "icon": "logo.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dropbox SKU Excel Generator"
     }
   },
   "author": "",

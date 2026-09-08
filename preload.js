@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // Folder Navigation
   listFolder: (path) => ipcRenderer.invoke('dropbox:listFolder', path),
+  searchFolder: (query) => ipcRenderer.invoke('dropbox:searchFolder', query),
+  selectTargetFolder: () => ipcRenderer.invoke('system:selectTargetFolder'),
 
   // Execution
   generateExcel: (targetFolder) => ipcRenderer.invoke('excel:generate', targetFolder),
@@ -17,5 +19,11 @@ contextBridge.exposeInMainWorld('api', {
 
   // Events
   onProgressUpdate: (callback) => ipcRenderer.on('progress:update', (event, data) => callback(data)),
-  removeProgressUpdate: () => ipcRenderer.removeAllListeners('progress:update')
+  removeProgressUpdate: () => ipcRenderer.removeAllListeners('progress:update'),
+
+  // Authentication
+  register: (data) => ipcRenderer.invoke('auth:register', data),
+  login: (data) => ipcRenderer.invoke('auth:login', data),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  checkSession: () => ipcRenderer.invoke('auth:checkSession')
 });

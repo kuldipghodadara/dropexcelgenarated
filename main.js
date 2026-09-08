@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 const { Dropbox } = require('dropbox');
 const ExcelJS = require('exceljs');
 let fetch; // for dropbox
@@ -22,6 +23,7 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: 'Dropbox SKU Excel Generator',
+    icon: path.join(__dirname, 'logo.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -98,6 +100,59 @@ ipcMain.handle('dropbox:listFolder', async (event, folderPath) => {
   } catch (error) {
     return { success: false, error: error.message || 'Failed to list folder' };
   }
+});
+
+ipcMain.handle('dropbox:searchFolder', async (event, query) => {
+  const token = store.get('dropboxToken');
+  if (!token) throw new Error('Not connected');
+  
+  try {
+    const dbx = getDbx(token);
+    const response = await dbx.filesSearchV2({ query });
+    
+    const folders = [];
+    if (response.result.matches) {
+       for (const match of response.result.matches) {
+           if (match.metadata && match.metadata.metadata && match.metadata.metadata['.tag'] === 'folder') {
+               folders.push(match.metadata.metadata);
+           }
+       }
+    }
+    return { success: true, folders };
+  } catch (error) {
+    return { success: false, error: error.message || 'Failed to search folders' };
+  }
+});
+
+ipcMain.handle('system:selectTargetFolder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select Dropbox Folder',
+    properties: ['openDirectory']
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    const selectedPath = result.filePaths[0];
+    
+    // Heuristic: Extract Dropbox path from local path
+    const normalized = selectedPath.replace(/\\/g, '/');
+    const dbxIndex = normalized.toLowerCase().lastIndexOf('/dropbox');
+    
+    let apiPath = '';
+    if (dbxIndex !== -1) {
+        const afterDbx = normalized.substring(dbxIndex + 8);
+        const slashIndex = afterDbx.indexOf('/');
+        if (slashIndex !== -1) {
+             apiPath = afterDbx.substring(slashIndex);
+        } else {
+             apiPath = '/';
+        }
+    } else {
+        return { success: false, error: 'The selected folder does not appear to be inside a Dropbox directory.' };
+    }
+    
+    return { success: true, apiPath: apiPath, localPath: selectedPath };
+  }
+  return { canceled: true };
 });
 
 function sortNumberedImages(entries) {
@@ -329,4 +384,87 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+// Authentication System
+
+// Password Hashing Helper
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+ipcMain.handle('auth:register', async (event, { name, mobile, email, password }) => {
+  try {
+    const users = store.get('auth_users') || [];
+    
+    // Check duplicates (email is case-insensitive)
+    const lowerEmail = email.toLowerCase();
+    const existing = users.find(u => u.email.toLowerCase() === lowerEmail || u.mobile === mobile);
+    if (existing) {
+      if (existing.mobile === mobile) return { success: false, error: 'This mobile number is already registered.' };
+      if (existing.email.toLowerCase() === lowerEmail) return { success: false, error: 'This email address is already registered.' };
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const passwordHash = hashPassword(password, salt);
+    
+    const newUser = {
+      id: crypto.randomUUID(),
+      name,
+      mobile,
+      email: lowerEmail, // store normalized email
+      passwordHash,
+      passwordSalt: salt,
+      createdAt: new Date().toISOString()
+    };
+    
+    users.push(newUser);
+    store.set('auth_users', users);
+    
+    // Auto-login after registration
+    const sessionData = { userId: newUser.id, name: newUser.name, email: newUser.email, mobile: newUser.mobile };
+    store.set('auth_session', sessionData);
+    
+    return { success: true, user: sessionData };
+  } catch (err) {
+    return { success: false, error: 'Failed to create account.' };
+  }
+});
+
+ipcMain.handle('auth:login', async (event, { identifier, password }) => {
+  try {
+    const users = store.get('auth_users') || [];
+    const lowerIdentifier = identifier.toLowerCase();
+    
+    // Find user by email (case-insensitive) or mobile
+    const user = users.find(u => u.email.toLowerCase() === lowerIdentifier || u.mobile === identifier);
+    if (!user) {
+      return { success: false, error: 'Invalid email/mobile or password.' }; // generic error
+    }
+
+    const computedHash = hashPassword(password, user.passwordSalt);
+    
+    if (computedHash === user.passwordHash) {
+      const sessionData = { userId: user.id, name: user.name, email: user.email, mobile: user.mobile };
+      store.set('auth_session', sessionData);
+      return { success: true, user: sessionData };
+    } else {
+      return { success: false, error: 'Invalid email/mobile or password.' };
+    }
+  } catch (err) {
+    return { success: false, error: 'Login failed due to system error.' };
+  }
+});
+
+ipcMain.handle('auth:logout', async () => {
+  store.delete('auth_session');
+  return { success: true };
+});
+
+ipcMain.handle('auth:checkSession', async () => {
+  const session = store.get('auth_session');
+  if (session) {
+    return { success: true, user: session };
+  }
+  return { success: false };
 });
