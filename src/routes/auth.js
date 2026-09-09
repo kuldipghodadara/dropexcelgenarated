@@ -127,6 +127,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    console.log('Token from Google (first 50 chars):', idToken.substring(0, 50));
+    console.log('Token length from Google:', idToken.length);
+
     return res.status(200).json({ success: true, data: userData, token: idToken });
   } catch (error) {
     console.error('Login Error:', error);
