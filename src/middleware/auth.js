@@ -33,8 +33,9 @@ const requireAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Auth Error:', error.message);
-    return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+    console.error('Auth Error:', error);
+    // Send the actual error message to the frontend for easier debugging
+    return res.status(401).json({ success: false, message: `Unauthorized: ${error.message}` });
   }
 };
 
