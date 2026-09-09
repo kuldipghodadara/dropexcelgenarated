@@ -10,7 +10,10 @@ const requireAuth = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Unauthorized: Missing or invalid token' });
     }
 
-    const idToken = authHeader.split('Bearer ')[1];
+    const idToken = authHeader.split('Bearer ')[1].trim();
+    console.log('Received Token Header (first 50 chars):', idToken.substring(0, 50));
+    console.log('Received Token Length:', idToken.length);
+
     const decodedToken = await auth.verifyIdToken(idToken);
     
     // Check if the user is in Firestore 'users' collection
