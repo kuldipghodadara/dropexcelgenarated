@@ -77,7 +77,14 @@ router.post('/login', async (req, res) => {
 
     // Check if identifier is a mobile number
     if (/^\d{10}$/.test(identifier)) {
-      const userSnapshot = await db.collection('users').where('mobile', '==', identifier).limit(1).get();
+      // First check admin collection
+      let userSnapshot = await db.collection('admin').where('mobile', '==', identifier).limit(1).get();
+      
+      // If not in admin, check users collection
+      if (userSnapshot.empty) {
+        userSnapshot = await db.collection('users').where('mobile', '==', identifier).limit(1).get();
+      }
+
       if (userSnapshot.empty) {
         return res.status(401).json({ success: false, message: 'Invalid mobile or password' });
       }
@@ -100,8 +107,13 @@ router.post('/login', async (req, res) => {
     const uid = data.localId;
     const idToken = data.idToken;
 
-    // Fetch user doc to check status
-    const userDoc = await db.collection('users').doc(uid).get();
+    // Fetch user doc to check status. Try 'admin' collection first, then 'users'
+    let userDoc = await db.collection('admin').doc(uid).get();
+    
+    if (!userDoc.exists) {
+      userDoc = await db.collection('users').doc(uid).get();
+    }
+
     const userData = userDoc.data();
 
     if (userData && (userData.status === 'blocked' || userData.status === 'suspended')) {
@@ -109,9 +121,11 @@ router.post('/login', async (req, res) => {
     }
 
     // Update lastLoginAt
-    await userDoc.ref.update({
-      lastLoginAt: new Date().toISOString()
-    });
+    if (userDoc.exists) {
+      await userDoc.ref.update({
+        lastLoginAt: new Date().toISOString()
+      });
+    }
 
     return res.status(200).json({ success: true, data: userData, token: idToken });
   } catch (error) {

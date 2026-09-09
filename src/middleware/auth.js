@@ -13,8 +13,14 @@ const requireAuth = async (req, res, next) => {
     const idToken = authHeader.split('Bearer ')[1];
     const decodedToken = await auth.verifyIdToken(idToken);
     
-    // Check if the user is suspended or blocked in Firestore
-    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    // Check if the user is in Firestore 'users' collection
+    let userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    
+    // If not in 'users', check 'admin' collection
+    if (!userDoc.exists) {
+      userDoc = await db.collection('admin').doc(decodedToken.uid).get();
+    }
+
     if (userDoc.exists) {
       const userData = userDoc.data();
       if (userData.status === 'blocked' || userData.status === 'suspended') {
