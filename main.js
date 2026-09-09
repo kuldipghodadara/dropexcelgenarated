@@ -388,71 +388,64 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
 
 // Authentication System
 
-// Password Hashing Helper
-function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64).toString('hex');
-}
+const BACKEND_URL = 'http://localhost:5000/api';
 
 ipcMain.handle('auth:register', async (event, { name, mobile, email, password }) => {
   try {
-    const users = store.get('auth_users') || [];
+    const res = await fetch(`${BACKEND_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, mobile, email, password })
+    });
     
-    // Check duplicates (email is case-insensitive)
-    const lowerEmail = email.toLowerCase();
-    const existing = users.find(u => u.email.toLowerCase() === lowerEmail || u.mobile === mobile);
-    if (existing) {
-      if (existing.mobile === mobile) return { success: false, error: 'This mobile number is already registered.' };
-      if (existing.email.toLowerCase() === lowerEmail) return { success: false, error: 'This email address is already registered.' };
+    const data = await res.json();
+    
+    if (data.success) {
+      // Auto-login doesn't give a token from our backend's register route right now, 
+      // so we will manually trigger a login call here to get the session token.
+      const loginRes = await fetch(`${BACKEND_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: email, password })
+      });
+      const loginData = await loginRes.json();
+      
+      if (loginData.success) {
+        store.set('auth_session', { user: loginData.data, token: loginData.token });
+        return { success: true, user: loginData.data };
+      }
+      
+      // If auto-login fails, save a local session anyway
+      store.set('auth_session', { user: data.data, token: null });
+      return { success: true, user: data.data };
+    } else {
+      return { success: false, error: data.message };
     }
-
-    const salt = crypto.randomBytes(16).toString('hex');
-    const passwordHash = hashPassword(password, salt);
-    
-    const newUser = {
-      id: crypto.randomUUID(),
-      name,
-      mobile,
-      email: lowerEmail, // store normalized email
-      passwordHash,
-      passwordSalt: salt,
-      createdAt: new Date().toISOString()
-    };
-    
-    users.push(newUser);
-    store.set('auth_users', users);
-    
-    // Auto-login after registration
-    const sessionData = { userId: newUser.id, name: newUser.name, email: newUser.email, mobile: newUser.mobile };
-    store.set('auth_session', sessionData);
-    
-    return { success: true, user: sessionData };
   } catch (err) {
-    return { success: false, error: 'Failed to create account.' };
+    console.error('Registration error:', err);
+    return { success: false, error: 'Failed to connect to backend server.' };
   }
 });
 
 ipcMain.handle('auth:login', async (event, { identifier, password }) => {
   try {
-    const users = store.get('auth_users') || [];
-    const lowerIdentifier = identifier.toLowerCase();
+    const res = await fetch(`${BACKEND_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
     
-    // Find user by email (case-insensitive) or mobile
-    const user = users.find(u => u.email.toLowerCase() === lowerIdentifier || u.mobile === identifier);
-    if (!user) {
-      return { success: false, error: 'Invalid email/mobile or password.' }; // generic error
-    }
-
-    const computedHash = hashPassword(password, user.passwordSalt);
+    const data = await res.json();
     
-    if (computedHash === user.passwordHash) {
-      const sessionData = { userId: user.id, name: user.name, email: user.email, mobile: user.mobile };
-      store.set('auth_session', sessionData);
-      return { success: true, user: sessionData };
+    if (data.success) {
+      store.set('auth_session', { user: data.data, token: data.token });
+      return { success: true, user: data.data };
     } else {
-      return { success: false, error: 'Invalid email/mobile or password.' };
+      return { success: false, error: data.message };
     }
   } catch (err) {
-    return { success: false, error: 'Login failed due to system error.' };
+    console.error('Login error:', err);
+    return { success: false, error: 'Failed to connect to backend server.' };
   }
 });
 
@@ -464,7 +457,12 @@ ipcMain.handle('auth:logout', async () => {
 ipcMain.handle('auth:checkSession', async () => {
   const session = store.get('auth_session');
   if (session) {
-    return { success: true, user: session };
+    if (session.user) {
+      return { success: true, user: session.user };
+    } else if (session.email) {
+      // Fallback for older local sessions
+      return { success: true, user: session };
+    }
   }
   return { success: false };
 });
