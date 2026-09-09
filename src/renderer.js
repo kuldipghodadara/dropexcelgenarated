@@ -103,13 +103,13 @@ function showDashboard(user) {
     authView.classList.add('hidden');
     profileView.classList.add('hidden');
     dashboardView.classList.remove('hidden');
-    userDisplay.textContent = currentUser.name || currentUser.email || currentUser.mobile;
+    userDisplay.textContent = currentUser.displayName || currentUser.name || currentUser.email || currentUser.mobile;
     userDisplayGroup.classList.remove('hidden');
     logoutBtn.classList.remove('hidden');
-    
+
     document.getElementById('headerConnectionGroup').classList.remove('hidden');
     document.getElementById('settingsBtn').classList.remove('hidden');
-    
+
     // Resume normal dashboard init
     checkTokenStatus();
 }
@@ -122,19 +122,20 @@ function showLogin() {
     registerCard.classList.add('hidden');
     userDisplayGroup.classList.add('hidden');
     logoutBtn.classList.add('hidden');
-    
+
     document.getElementById('headerConnectionGroup').classList.add('hidden');
     document.getElementById('settingsBtn').classList.add('hidden');
-    
+
     showError(''); // clear global errors
 }
 
 function showProfile() {
+    console.log('--- showProfile currentUser ---', currentUser);
     dashboardView.classList.add('hidden');
     profileView.classList.remove('hidden');
-    
-    profileNameTxt.textContent = currentUser.name || 'Not provided';
-    profileMobileTxt.textContent = currentUser.mobile || 'Not provided';
+
+    profileNameTxt.textContent = currentUser.displayName || currentUser.name || 'Not provided';
+    profileMobileTxt.textContent = currentUser.mobile || currentUser.phoneNumber || 'Not provided';
     profileEmailTxt.textContent = currentUser.email || 'Not provided';
 }
 
@@ -199,7 +200,7 @@ registerSubmitBtn.addEventListener('click', async () => {
     const email = registerEmail.value.trim();
     const password = registerPassword.value;
     const confirmPassword = registerConfirmPassword.value;
-    
+
     let hasError = false;
 
     // Name Validation
@@ -214,37 +215,37 @@ registerSubmitBtn.addEventListener('click', async () => {
         showFieldError(registerMobile, 'Please enter a valid 10-digit mobile number.');
         hasError = true;
     }
-    
+
     // Email Validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
         showFieldError(registerEmail, 'Please enter a valid email address.');
         hasError = true;
     }
-    
+
     // Password Validation
     const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
     if (!passRegex.test(password)) {
         showFieldError(registerPassword.parentNode, 'Password must contain at least 8 characters, including uppercase, lowercase, and a number.');
         hasError = true;
     }
-    
+
     // Confirm Password
     if (password !== confirmPassword) {
         showFieldError(registerConfirmPassword.parentNode, 'Passwords do not match.');
         hasError = true;
     }
-    
+
     if (hasError) return;
-    
+
     registerSubmitBtn.disabled = true;
     registerSubmitBtn.textContent = 'Creating Account...';
-    
+
     const res = await window.api.register({ name, mobile, email, password });
-    
+
     registerSubmitBtn.disabled = false;
     registerSubmitBtn.textContent = 'Create Account';
-    
+
     if (res.success) {
         showDashboard(res.user);
     } else {
@@ -257,7 +258,7 @@ loginSubmitBtn.addEventListener('click', async () => {
     clearAuthErrors();
     const identifier = loginIdentifier.value.trim();
     const password = loginPassword.value;
-    
+
     let hasError = false;
     if (!identifier) {
         showFieldError(loginIdentifier, 'Please enter your email or mobile number.');
@@ -268,15 +269,15 @@ loginSubmitBtn.addEventListener('click', async () => {
         hasError = true;
     }
     if (hasError) return;
-    
+
     loginSubmitBtn.disabled = true;
     loginSubmitBtn.textContent = 'Signing In...';
-    
+
     const res = await window.api.login({ identifier, password });
-    
+
     loginSubmitBtn.disabled = false;
     loginSubmitBtn.textContent = 'Login';
-    
+
     if (res.success) {
         showDashboard(res.user);
     } else {
@@ -305,7 +306,7 @@ function updateConnectionUI(status) {
         // Update header
         headerConnectionDot.className = 'dot connected';
         headerConnectionText.textContent = 'Connected';
-        
+
         // Update card
         connectionDot.className = 'dot connected';
         connectionText.textContent = 'Connected';
@@ -313,7 +314,7 @@ function updateConnectionUI(status) {
         tokenMasked.classList.remove('hidden');
         addTokenBtn.textContent = 'Update Token';
         removeTokenBtn.classList.remove('hidden');
-        
+
         // Hide connection card, show explorer
         connectionCard.classList.add('hidden');
         explorerSection.classList.remove('hidden');
@@ -321,13 +322,13 @@ function updateConnectionUI(status) {
     } else {
         headerConnectionDot.className = 'dot disconnected';
         headerConnectionText.textContent = 'Not Connected';
-        
+
         connectionDot.className = 'dot disconnected';
         connectionText.textContent = status.error || 'Not Connected';
         tokenMasked.classList.add('hidden');
         addTokenBtn.textContent = 'Add Token';
         removeTokenBtn.classList.add('hidden');
-        
+
         connectionCard.classList.remove('hidden');
         explorerSection.classList.add('hidden');
         confirmSection.classList.add('hidden');
@@ -349,7 +350,7 @@ saveTokenBtn.addEventListener('click', async () => {
         showError('');
 
         const status = await window.api.setToken(token);
-        
+
         saveTokenBtn.disabled = false;
         saveTokenBtn.textContent = 'Save Changes';
 
@@ -383,21 +384,30 @@ selectDownloadPathBtn.addEventListener('click', async () => {
 searchFolderBtn.addEventListener('click', async () => {
     const query = searchInput.value.trim();
     if (!query) {
-        showError('Please enter a folder name to search.');
+        // Reload current folder if search is empty (acts as clear search)
+        loadFolder(currentPath || '/');
         return;
     }
-    
+
     explorerList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary);">Searching Dropbox...</div>';
     showError('');
 
     const res = await window.api.searchFolder(query);
     if (res.success) {
         renderFolderList(res.folders);
+        searchInput.value = ''; // Clear input after showing results
     } else {
         showError('Something went wrong searching folders.');
         explorerList.innerHTML = '<div style="padding: 1rem; color: var(--danger);">Search failed.</div>';
     }
 });
+
+const refreshAppBtn = document.getElementById('refreshAppBtn');
+if (refreshAppBtn) {
+    refreshAppBtn.addEventListener('click', () => {
+        window.location.reload();
+    });
+}
 
 searchInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchFolderBtn.click();
@@ -429,9 +439,9 @@ browseFilesBtn.addEventListener('click', async () => {
     showError('');
     browseFilesBtn.disabled = true;
     browseFilesBtn.textContent = 'Browsing...';
-    
+
     const res = await window.api.selectTargetFolder();
-    
+
     browseFilesBtn.disabled = false;
     browseFilesBtn.textContent = 'Browse Files...';
 
@@ -447,7 +457,7 @@ async function loadFolder(path) {
     currentPath = path;
     selectFolderBtn.disabled = true;
     explorerList.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary);">Loading...</div>';
-    
+
     updateBreadcrumb(path);
 
     const res = await window.api.listFolder(path);
@@ -492,11 +502,11 @@ selectFolderBtn.addEventListener('click', () => {
 
 async function selectTargetFolder(apiPath, displayPath) {
     targetFolder = apiPath;
-    
+
     explorerSection.classList.add('hidden');
     confirmSection.classList.remove('hidden');
     showError('');
-    
+
     confirmFolderTxt.textContent = displayPath || (targetFolder === '' ? 'Dropbox Root ( / )' : targetFolder);
     confirmSkusTxt.textContent = 'Counting SKUs...';
     startGenerationBtn.disabled = true;
@@ -526,7 +536,7 @@ startGenerationBtn.addEventListener('click', async () => {
     confirmSection.classList.add('hidden');
     progressSection.classList.remove('hidden');
     showError('');
-    
+
     // Bind progress updates
     window.api.onProgressUpdate((data) => {
         if (data.stage === 'scanning_images') {
@@ -544,7 +554,7 @@ startGenerationBtn.addEventListener('click', async () => {
     });
 
     const result = await window.api.generateExcel(targetFolder);
-    
+
     window.api.removeProgressUpdate();
     progressSection.classList.add('hidden');
 
@@ -579,17 +589,17 @@ function showResults(summary) {
 downloadExcelBtn.addEventListener('click', async () => {
     downloadExcelBtn.disabled = true;
     downloadExcelBtn.textContent = 'Saving...';
-    
+
     const parts = targetFolder.split('/').filter(Boolean);
     const targetFolderName = parts.length > 0 ? parts[parts.length - 1] : 'DropboxRoot';
 
-    const res = await window.api.saveExcel({ 
-        data: currentPreviewData, 
+    const res = await window.api.saveExcel({
+        data: currentPreviewData,
         maxImages: currentMaxImages,
         targetFolder: targetFolder,
         targetFolderName: targetFolderName
     });
-    
+
     downloadExcelBtn.disabled = false;
     downloadExcelBtn.textContent = 'Download Excel';
 

@@ -27,9 +27,13 @@ async function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      devTools: false // Disable dev tools completely
     }
   });
+
+  // Remove the File, Edit, View, Window, Help menu completely
+  mainWindow.setMenu(null);
 
   mainWindow.loadFile('src/index.html');
 }
@@ -415,9 +419,10 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
         return { success: true, user: loginData.data };
       }
       
-      // If auto-login fails, save a local session anyway
-      store.set('auth_session', { user: data.data, token: null });
-      return { success: true, user: data.data };
+      // If auto-login fails, save a local session anyway with the provided data
+      const fallbackUser = { ...data.data, displayName: name, mobile: mobile };
+      store.set('auth_session', { user: fallbackUser, token: null });
+      return { success: true, user: fallbackUser };
     } else {
       return { success: false, error: data.message };
     }
