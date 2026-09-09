@@ -64,7 +64,7 @@ function getDbx(token) {
 ipcMain.handle('dropbox:getTokenStatus', async () => {
   const token = store.get('dropboxToken');
   if (!token) return { connected: false };
-  
+
   try {
     const dbx = getDbx(token);
     await dbx.usersGetCurrentAccount();
@@ -93,11 +93,11 @@ ipcMain.handle('dropbox:removeToken', async () => {
 ipcMain.handle('dropbox:listFolder', async (event, folderPath) => {
   const token = store.get('dropboxToken');
   if (!token) throw new Error('Not connected');
-  
+
   try {
     const dbx = getDbx(token);
     const response = await dbx.filesListFolder({ path: folderPath === '/' ? '' : folderPath });
-    
+
     // Filter out files, keep only folders for navigation
     const folders = response.result.entries.filter(entry => entry['.tag'] === 'folder');
     return { success: true, folders };
@@ -109,18 +109,18 @@ ipcMain.handle('dropbox:listFolder', async (event, folderPath) => {
 ipcMain.handle('dropbox:searchFolder', async (event, query) => {
   const token = store.get('dropboxToken');
   if (!token) throw new Error('Not connected');
-  
+
   try {
     const dbx = getDbx(token);
     const response = await dbx.filesSearchV2({ query });
-    
+
     const folders = [];
     if (response.result.matches) {
-       for (const match of response.result.matches) {
-           if (match.metadata && match.metadata.metadata && match.metadata.metadata['.tag'] === 'folder') {
-               folders.push(match.metadata.metadata);
-           }
-       }
+      for (const match of response.result.matches) {
+        if (match.metadata && match.metadata.metadata && match.metadata.metadata['.tag'] === 'folder') {
+          folders.push(match.metadata.metadata);
+        }
+      }
     }
     return { success: true, folders };
   } catch (error) {
@@ -136,24 +136,24 @@ ipcMain.handle('system:selectTargetFolder', async () => {
 
   if (!result.canceled && result.filePaths.length > 0) {
     const selectedPath = result.filePaths[0];
-    
+
     // Heuristic: Extract Dropbox path from local path
     const normalized = selectedPath.replace(/\\/g, '/');
     const dbxIndex = normalized.toLowerCase().lastIndexOf('/dropbox');
-    
+
     let apiPath = '';
     if (dbxIndex !== -1) {
-        const afterDbx = normalized.substring(dbxIndex + 8);
-        const slashIndex = afterDbx.indexOf('/');
-        if (slashIndex !== -1) {
-             apiPath = afterDbx.substring(slashIndex);
-        } else {
-             apiPath = '/';
-        }
+      const afterDbx = normalized.substring(dbxIndex + 8);
+      const slashIndex = afterDbx.indexOf('/');
+      if (slashIndex !== -1) {
+        apiPath = afterDbx.substring(slashIndex);
+      } else {
+        apiPath = '/';
+      }
     } else {
-        return { success: false, error: 'The selected folder does not appear to be inside a Dropbox directory.' };
+      return { success: false, error: 'The selected folder does not appear to be inside a Dropbox directory.' };
     }
-    
+
     return { success: true, apiPath: apiPath, localPath: selectedPath };
   }
   return { canceled: true };
@@ -162,7 +162,7 @@ ipcMain.handle('system:selectTargetFolder', async () => {
 function sortNumberedImages(entries) {
   const images = [];
   const pattern = /^(\d+)\.(jpg|jpeg|png|webp)$/i;
-  
+
   for (const entry of entries) {
     if (entry['.tag'] === 'file') {
       const match = entry.name.match(pattern);
@@ -174,7 +174,7 @@ function sortNumberedImages(entries) {
       }
     }
   }
-  
+
   images.sort((a, b) => a.num - b.num);
   return images.map(img => img.entry);
 }
@@ -203,7 +203,7 @@ async function getSharedLink(dbx, dbxPath) {
         if (sharedLinks.result.links && sharedLinks.result.links.length > 0) {
           return sharedLinks.result.links[0].url;
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     console.error('Link generation error:', err);
     return null;
@@ -214,32 +214,32 @@ ipcMain.handle('excel:generate', async (event, targetFolder) => {
   const token = store.get('dropboxToken');
   if (!token) throw new Error('Not connected');
   const dbx = getDbx(token);
-  
+
   try {
     event.sender.send('progress:update', { stage: 'scanning_skus', message: 'Scanning SKU folders...' });
-    
+
     // Get immediate child folders (SKUs)
     const folderResp = await dbx.filesListFolder({ path: targetFolder === '/' ? '' : targetFolder });
     const skus = folderResp.result.entries.filter(e => e['.tag'] === 'folder');
-    
+
     if (skus.length === 0) {
       return { success: false, error: 'No SKU folders found in the selected folder.' };
     }
-    
+
     const catalogData = [];
     let totalImages = 0;
     let imagesProcessed = 0;
-    
+
     event.sender.send('progress:update', { stage: 'scanning_images', message: 'Finding images in SKUs...', totalSkus: skus.length });
 
     // First pass: discover images to get a total count
     for (let i = 0; i < skus.length; i++) {
       const skuFolder = skus[i];
       event.sender.send('progress:update', { stage: 'scanning_images', currentSku: skuFolder.name, skuIndex: i, totalSkus: skus.length });
-      
+
       const contents = await dbx.filesListFolder({ path: skuFolder.path_lower });
       const images = sortNumberedImages(contents.result.entries);
-      
+
       totalImages += images.length;
       catalogData.push({
         sku: skuFolder.name,
@@ -261,15 +261,15 @@ ipcMain.handle('excel:generate', async (event, targetFolder) => {
           linksCreated++;
         } catch (error) {
           if (error.message === 'MISSING_SCOPE') {
-             return { success: false, error: 'Missing Dropbox sharing permission.\nYour Dropbox app needs the "sharing.write" permission.' };
+            return { success: false, error: 'Missing Dropbox sharing permission.\nYour Dropbox app needs the "sharing.write" permission.' };
           }
           row.links.push('[Error]');
         }
         imagesProcessed++;
-        
-        event.sender.send('progress:update', { 
-          stage: 'generating_links', 
-          totalImages, 
+
+        event.sender.send('progress:update', {
+          stage: 'generating_links',
+          totalImages,
           imagesProcessed,
           linksCreated,
           currentSku: row.sku
@@ -280,7 +280,7 @@ ipcMain.handle('excel:generate', async (event, targetFolder) => {
     // Prepare Excel preview data
     let maxImages = 0;
     const previewData = [];
-    
+
     catalogData.forEach(row => {
       if (row.links.length > maxImages) maxImages = row.links.length;
       const previewRow = { SKU: row.sku };
@@ -290,16 +290,16 @@ ipcMain.handle('excel:generate', async (event, targetFolder) => {
       previewData.push(previewRow);
     });
 
-    return { 
-      success: true, 
-      data: previewData, 
-      maxImages, 
-      summary: { 
-        skus: skus.length, 
-        totalImages, 
+    return {
+      success: true,
+      data: previewData,
+      maxImages,
+      summary: {
+        skus: skus.length,
+        totalImages,
         linksCreated,
         skusWithoutImages: catalogData.filter(r => r.images.length === 0).length
-      } 
+      }
     };
 
   } catch (error) {
@@ -327,7 +327,7 @@ ipcMain.handle('excel:getDownloadFolder', async () => {
 
 ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targetFolderName }) => {
   const manualPath = store.get('downloadPath');
-  
+
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -335,7 +335,7 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
   const hh = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
   const ss = String(now.getSeconds()).padStart(2, '0');
-  
+
   const safeFolderName = (targetFolderName || 'Catalog').replace(/[<>:"/\\|?*]+/g, '_');
   const filename = `${safeFolderName}_${yyyy}-${mm}-${dd}_${hh}-${min}-${ss}.xlsx`;
 
@@ -352,7 +352,7 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
     worksheet.columns = columns;
 
     worksheet.addRows(data);
-    
+
     // Style headers
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
@@ -371,18 +371,18 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
       const token = store.get('dropboxToken');
       if (!token) throw new Error('Not connected to Dropbox');
       const dbx = getDbx(token);
-      
+
       const buffer = await workbook.xlsx.writeBuffer();
       const basePath = (targetFolder === '/' ? '' : targetFolder);
       const dbxPath = `${basePath}/${filename}`;
-      
-      await dbx.filesUpload({ 
-        path: dbxPath, 
-        contents: buffer, 
-        mode: { '.tag': 'add' }, 
-        autorename: true 
+
+      await dbx.filesUpload({
+        path: dbxPath,
+        contents: buffer,
+        mode: { '.tag': 'add' },
+        autorename: true
       });
-      
+
       return { success: true, filePath: `Dropbox: ${dbxPath}` };
     }
   } catch (error) {
@@ -392,7 +392,7 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
 
 // Authentication System
 
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = 'https://dropexcelgenarated.vercel.app/api';
 
 ipcMain.handle('auth:register', async (event, { name, mobile, email, password }) => {
   try {
@@ -401,9 +401,9 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, mobile, email, password })
     });
-    
+
     const data = await res.json();
-    
+
     if (data.success) {
       // Auto-login doesn't give a token from our backend's register route right now, 
       // so we will manually trigger a login call here to get the session token.
@@ -413,12 +413,12 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
         body: JSON.stringify({ identifier: email, password })
       });
       const loginData = await loginRes.json();
-      
+
       if (loginData.success) {
         store.set('auth_session', { user: loginData.data, token: loginData.token });
         return { success: true, user: loginData.data };
       }
-      
+
       // If auto-login fails, save a local session anyway with the provided data
       const fallbackUser = { ...data.data, displayName: name, mobile: mobile };
       store.set('auth_session', { user: fallbackUser, token: null });
@@ -439,9 +439,9 @@ ipcMain.handle('auth:login', async (event, { identifier, password }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password })
     });
-    
+
     const data = await res.json();
-    
+
     if (data.success) {
       store.set('auth_session', { user: data.data, token: data.token });
       return { success: true, user: data.data };
