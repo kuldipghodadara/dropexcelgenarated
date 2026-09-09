@@ -58,8 +58,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
+// Start Server (Only when not in serverless environment)
+if (process.env.NODE_ENV !== 'production' || process.env.RUN_LOCAL === 'true') {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
+}
+
+// Export the app for Vercel Serverless Functions
+module.exports = app;
