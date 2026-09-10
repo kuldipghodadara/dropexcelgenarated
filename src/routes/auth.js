@@ -29,6 +29,24 @@ router.post('/register', async (req, res) => {
       displayName: name || '',
     });
 
+    // Fetch global settings for trial
+    let defaultTrialDays = 7;
+    let defaultDeviceLimit = 2;
+    try {
+      const settingsDoc = await db.collection('settings').doc('global').get();
+      if (settingsDoc.exists) {
+        const s = settingsDoc.data();
+        if (s.defaultTrialDays) defaultTrialDays = s.defaultTrialDays;
+        if (s.defaultDeviceLimit) defaultDeviceLimit = s.defaultDeviceLimit;
+      }
+    } catch (e) {
+      console.error('Failed to load global settings', e);
+    }
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + defaultTrialDays);
+    expiry.setUTCHours(23, 59, 59, 999);
+
     // Create user document in Firestore
     const userData = {
       uid: userRecord.uid,
@@ -37,6 +55,12 @@ router.post('/register', async (req, res) => {
       displayName: name || '',
       role: 'user', // Default role securely set on backend
       status: 'active',
+      planType: 'trial',
+      planName: 'Free Trial',
+      planId: 'trial',
+      planExpiryDate: expiry.toISOString(),
+      deviceLimit: defaultDeviceLimit,
+      activeDevices: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       lastLoginAt: null
@@ -67,10 +91,13 @@ router.post('/register', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   try {
-    const { identifier, password } = req.body;
+    const { identifier, password, deviceId, deviceName } = req.body;
 
     if (!identifier || !password) {
       return res.status(400).json({ success: false, message: 'Identifier and password are required' });
+    }
+    if (!deviceId) {
+      return res.status(400).json({ success: false, message: 'Device ID is required' });
     }
 
     let userEmail = identifier.toLowerCase();
@@ -120,11 +147,33 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ success: false, message: `Account is ${userData.status}` });
     }
 
-    // Update lastLoginAt
+    // Update lastLoginAt and active devices
     if (userDoc.exists) {
-      await userDoc.ref.update({
+      let activeDevices = userData.activeDevices || [];
+      const limit = userData.deviceLimit || 2;
+      
+      // Remove this device if it already exists to move it to the end (most recent)
+      activeDevices = activeDevices.filter(d => d.deviceId !== deviceId);
+      
+      // Add the current device
+      activeDevices.push({
+        deviceId,
+        deviceName: deviceName || 'Unknown Device',
         lastLoginAt: new Date().toISOString()
       });
+      
+      // Evict oldest if exceeding limit
+      if (activeDevices.length > limit) {
+        const overBy = activeDevices.length - limit;
+        activeDevices = activeDevices.slice(overBy);
+      }
+
+      await userDoc.ref.update({
+        lastLoginAt: new Date().toISOString(),
+        activeDevices
+      });
+      
+      userData.activeDevices = activeDevices;
     }
 
     console.log('Token from Google (first 50 chars):', idToken.substring(0, 50));

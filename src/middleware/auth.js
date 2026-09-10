@@ -27,6 +27,18 @@ const requireAuth = async (req, res, next) => {
       if (userData.status === 'blocked' || userData.status === 'suspended') {
         return res.status(403).json({ success: false, message: `Account is ${userData.status}` });
       }
+
+      // Active device validation for regular users
+      if (req.headers['x-device-id'] && userData.role !== 'admin') {
+        const reqDeviceId = req.headers['x-device-id'];
+        const activeDevices = userData.activeDevices || [];
+        const isActive = activeDevices.find(d => d.deviceId === reqDeviceId);
+        
+        if (!isActive) {
+          return res.status(401).json({ success: false, message: 'Unauthorized: Session invalidated due to login on another device.' });
+        }
+      }
+
       req.user = { uid: uid, ...userData };
     } else {
       // If user document not found, the token/UID is invalid or stale

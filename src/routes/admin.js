@@ -25,6 +25,48 @@ async function logAdminAction(adminUid, action, targetUserUid, metadata = {}) {
 }
 
 /**
+ * GET /api/admin/settings
+ * Fetch global settings
+ */
+router.get('/settings', async (req, res) => {
+  try {
+    const doc = await db.collection('settings').doc('global').get();
+    let data = { defaultTrialDays: 7, defaultDeviceLimit: 2 };
+    if (doc.exists) {
+      data = { ...data, ...doc.data() };
+    }
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('Fetch Settings Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch settings' });
+  }
+});
+
+/**
+ * PUT /api/admin/settings
+ * Update global settings
+ */
+router.put('/settings', async (req, res) => {
+  try {
+    const { defaultTrialDays, defaultDeviceLimit } = req.body;
+    
+    const updateData = {
+      defaultTrialDays: parseInt(defaultTrialDays, 10) || 7,
+      defaultDeviceLimit: parseInt(defaultDeviceLimit, 10) || 2,
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.collection('settings').doc('global').set(updateData, { merge: true });
+    await logAdminAction(req.user.uid, 'SETTINGS_UPDATED', 'GLOBAL', updateData);
+
+    return res.status(200).json({ success: true, message: 'Settings updated successfully', data: updateData });
+  } catch (error) {
+    console.error('Update Settings Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update settings' });
+  }
+});
+
+/**
  * GET /api/admin/users
  * Fetches all users with simple pagination
  */
@@ -111,6 +153,34 @@ router.put('/users/:uid/role', async (req, res) => {
   } catch (error) {
     console.error('Update Role Error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update user role' });
+  }
+});
+
+/**
+ * PUT /api/admin/users/:uid/deviceLimit
+ * Updates user device limit manually
+ */
+router.put('/users/:uid/deviceLimit', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { deviceLimit } = req.body;
+
+    const parsedLimit = parseInt(deviceLimit, 10);
+    if (isNaN(parsedLimit) || parsedLimit < 1) {
+      return res.status(400).json({ success: false, message: 'Invalid device limit' });
+    }
+
+    await db.collection('users').doc(uid).update({ 
+      deviceLimit: parsedLimit,
+      updatedAt: new Date().toISOString()
+    });
+    
+    await logAdminAction(req.user.uid, 'USER_DEVICE_LIMIT_CHANGED', uid, { deviceLimit: parsedLimit });
+
+    return res.status(200).json({ success: true, message: `Device limit changed to ${parsedLimit}` });
+  } catch (error) {
+    console.error('Update Device Limit Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update device limit' });
   }
 });
 
