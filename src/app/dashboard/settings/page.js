@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('https://dropexcelgenarated.vercel.appapi/admin/settings', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/settings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('https://dropexcelgenarated.vercel.appapi/admin/settings', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/admin/settings`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
