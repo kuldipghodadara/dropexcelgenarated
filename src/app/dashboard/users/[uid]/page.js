@@ -8,37 +8,193 @@ export default function UserDetailsPage({ params }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  const [plans, setPlans] = useState([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [customExpiry, setCustomExpiry] = useState('');
+  const [assigningPlan, setAssigningPlan] = useState(false);
 
-  // Dummy fetch for UI scaffolding
   useEffect(() => {
-    setTimeout(() => {
-      setUser({
-        uid,
-        name: 'John Doe',
-        email: 'john@example.com',
-        mobile: '9876543210',
-        role: 'user',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
-      });
-      setLoading(false);
-    }, 500);
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('adminToken');
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+        
+        // Fetch User
+        const userRes = await fetch(`${API_URL}/admin/users`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const userData = await userRes.json();
+        if (userData.success) {
+          const foundUser = userData.data.find(u => u.uid === uid);
+          if (foundUser) setUser(foundUser);
+        }
+
+        // Fetch Plans
+        const planRes = await fetch(`${API_URL}/admin/plans`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const planData = await planRes.json();
+        if (planData.success) {
+          setPlans(planData.data);
+        }
+      } catch (err) {
+        setError('Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, [uid]);
 
   const handleStatusChange = async (newStatus) => {
     if (!window.confirm(`Are you sure you want to change this user's status to ${newStatus.toUpperCase()}?`)) return;
-    
-    // In real app, call PUT /api/admin/users/:uid/status
-    setUser({ ...user, status: newStatus });
+    try {
+      const token = localStorage.getItem('adminToken');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/admin/users/${uid}/status`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser({ ...user, status: newStatus });
+      } else {
+        setError(data.message);
+      }
+    } catch (e) {
+      setError('Network error');
+    }
   };
 
   const handleRoleChange = async (newRole) => {
     if (!window.confirm(`Are you sure you want to grant this user the ${newRole.toUpperCase()} role?`)) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/admin/users/${uid}/role`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ role: newRole })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser({ ...user, role: newRole });
+      } else {
+        setError(data.message);
+      }
+    } catch (e) {
+      setError('Network error');
+    }
+  };
+
+  const handlePlanSelection = (pid) => {
+    setSelectedPlanId(pid);
+    if (!pid) {
+      setCustomExpiry('');
+      return;
+    }
     
-    // In real app, call PUT /api/admin/users/:uid/role
-    setUser({ ...user, role: newRole });
+    const plan = plans.find(p => p.id === pid);
+    if (!plan || plan.type === 'lifetime') {
+      setCustomExpiry('');
+      return;
+    }
+
+    const d = new Date();
+    
+    if (plan.durationMonths) {
+      d.setMonth(d.getMonth() + parseInt(plan.durationMonths, 10));
+    } else if (plan.type === 'monthly') {
+      d.setMonth(d.getMonth() + 1);
+    } else if (plan.type === 'yearly') {
+      d.setFullYear(d.getFullYear() + 1);
+    } else if (plan.type === 'custom' && plan.durationDays) {
+      d.setDate(d.getDate() + parseInt(plan.durationDays, 10));
+    }
+    
+    // Format to YYYY-MM-DD for the HTML date input
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    setCustomExpiry(`${yyyy}-${mm}-${dd}`);
+  };
+
+  const handleAssignPlan = async () => {
+    let finalPlanId, finalPlanName, finalPlanType, finalDurationMonths;
+
+    if (!selectedPlanId) {
+      if (!customExpiry) {
+        alert('Please select a plan or a custom expiry date!');
+        return;
+      }
+      // Only date was selected
+      finalPlanId = 'custom_override';
+      finalPlanName = 'Custom Date Plan';
+      finalPlanType = 'custom';
+    } else {
+      const selectedPlan = plans.find(p => p.id === selectedPlanId);
+      if (!selectedPlan) return;
+      
+      finalPlanId = selectedPlan.id;
+      finalPlanName = selectedPlan.name;
+      finalPlanType = selectedPlan.type || 'duration';
+      finalDurationMonths = selectedPlan.durationMonths;
+
+      if (selectedPlan.type === 'custom' && !customExpiry) {
+        setError('Please select an expiry date for this custom plan');
+        alert('Please select an expiry date for this custom plan');
+        return;
+      }
+    }
+
+    setAssigningPlan(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('adminToken');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/admin/users/${uid}/plan`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          planId: finalPlanId, 
+          planName: finalPlanName, 
+          type: finalPlanType,
+          durationMonths: finalDurationMonths,
+          expiryDate: customExpiry
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser({ 
+          ...user, 
+          planId: data.data.planId, 
+          planName: data.data.planName, 
+          planType: data.data.planType,
+          planExpiryDate: data.data.planExpiryDate 
+        });
+        alert('Plan assigned successfully!');
+      } else {
+        const errorMsg = data.message || 'Failed to assign plan';
+        setError(errorMsg);
+        alert('Error: ' + errorMsg);
+      }
+    } catch (err) {
+      setError('Error connecting to server');
+    } finally {
+      setAssigningPlan(false);
+    }
   };
 
   if (loading) return <div>Loading user details...</div>;
@@ -90,11 +246,66 @@ export default function UserDetailsPage({ params }) {
           </div>
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Last Updated</div>
-            <div>{new Date(user.updatedAt).toLocaleString()}</div>
+            <div>{user.updatedAt ? new Date(user.updatedAt).toLocaleString() : 'N/A'}</div>
           </div>
           <div>
             <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Last Login</div>
             <div>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Never'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.8rem' }}>Subscription Plan</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Current Plan</div>
+            <div style={{ fontWeight: 500, fontSize: '1.1rem', color: 'var(--primary)' }}>{user.planName || 'No Plan Assigned'}</div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Expiry Date</div>
+            <div style={{ fontWeight: 500, color: user.planExpiryDate && new Date(user.planExpiryDate) < new Date() ? 'var(--error)' : 'inherit' }}>
+              {user.planType === 'lifetime' ? 'Lifetime Access' : 
+               user.planExpiryDate ? new Date(user.planExpiryDate).toLocaleDateString() : 'N/A'}
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '6px' }}>
+          <h4 style={{ marginBottom: '1rem', fontSize: '0.95rem' }}>Assign New Plan</h4>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
+              <label>Select Plan</label>
+              <select 
+                className="form-input"
+                value={selectedPlanId}
+                onChange={(e) => handlePlanSelection(e.target.value)}
+              >
+                <option value="">-- Select a Plan --</option>
+                {plans.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                ))}
+              </select>
+            </div>
+            {plans.find(p => p.id === selectedPlanId)?.type !== 'lifetime' && (
+              <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '200px' }}>
+                <label>Expiry Date Override {plans.find(p => p.id === selectedPlanId)?.type !== 'custom' && '(Optional)'}</label>
+                <input 
+                  type="date" 
+                  className="form-input" 
+                  value={customExpiry}
+                  onChange={(e) => setCustomExpiry(e.target.value)}
+                />
+              </div>
+            )}
+            
+            <button 
+              className="btn btn-primary" 
+              onClick={handleAssignPlan}
+              disabled={assigningPlan}
+            >
+              {assigningPlan ? 'Assigning...' : 'Assign Plan'}
+            </button>
           </div>
         </div>
       </div>

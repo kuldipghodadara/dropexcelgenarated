@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Settings, LogOut, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, UserCircle, CreditCard } from 'lucide-react';
 
 export default function DashboardLayout({ children }) {
   const pathname = usePathname();
@@ -36,6 +36,10 @@ export default function DashboardLayout({ children }) {
           <Link href="/dashboard/users" className={`nav-item ${pathname.startsWith('/dashboard/users') ? 'active' : ''}`}>
             <Users size={20} style={{ marginRight: '12px' }} />
             Users
+          </Link>
+          <Link href="/dashboard/plans" className={`nav-item ${pathname.startsWith('/dashboard/plans') ? 'active' : ''}`}>
+            <CreditCard size={20} style={{ marginRight: '12px' }} />
+            Plans
           </Link>
           <Link href="/dashboard/settings" className={`nav-item ${pathname === '/dashboard/settings' ? 'active' : ''}`}>
             <Settings size={20} style={{ marginRight: '12px' }} />
