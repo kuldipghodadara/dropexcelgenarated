@@ -31,7 +31,7 @@
     "nsis": {
       "oneClick": true,
       "perMachine": true,
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "Dropbox SKU Excel Generator",
       "artifactName": "${productName} Setup ${version}.${ext}"
