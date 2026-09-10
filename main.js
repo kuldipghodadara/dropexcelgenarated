@@ -60,7 +60,7 @@ function getDbx(token) {
 }
 
 // Authentication System
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = 'https://dropexcelgenarated.vercel.app/api';
 
 let authCache = null;
 
