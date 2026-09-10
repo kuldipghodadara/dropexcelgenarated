@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('http://localhost:5000/api/admin/settings', {
+      const res = await fetch('https://dropexcelgenarated.vercel.appapi/admin/settings', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -43,15 +43,15 @@ export default function SettingsPage() {
 
     try {
       const token = localStorage.getItem('adminToken');
-      const res = await fetch('http://localhost:5000/api/admin/settings', {
+      const res = await fetch('https://dropexcelgenarated.vercel.appapi/admin/settings', {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(settings)
       });
-      
+
       const data = await res.json();
       if (data.success) {
         setMessage({ type: 'success', text: 'Settings updated successfully!' });
@@ -78,11 +78,11 @@ export default function SettingsPage() {
 
       <div className="card" style={{ maxWidth: '600px' }}>
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
+
           {message && (
-            <div style={{ 
-              padding: '1rem', 
-              borderRadius: '6px', 
+            <div style={{
+              padding: '1rem',
+              borderRadius: '6px',
               background: message.type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
               color: message.type === 'error' ? 'var(--error)' : 'var(--success)',
               display: 'flex',
@@ -101,12 +101,12 @@ export default function SettingsPage() {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
               The number of free trial days assigned to a user automatically upon registration.
             </p>
-            <input 
-              type="number" 
-              className="input" 
+            <input
+              type="number"
+              className="input"
               min="0"
               value={settings.defaultTrialDays}
-              onChange={(e) => setSettings({...settings, defaultTrialDays: e.target.value})}
+              onChange={(e) => setSettings({ ...settings, defaultTrialDays: e.target.value })}
               required
             />
           </div>
@@ -118,12 +118,12 @@ export default function SettingsPage() {
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
               The maximum number of devices a user can be logged into simultaneously. If exceeded, the oldest logged-in device will be automatically logged out.
             </p>
-            <input 
-              type="number" 
-              className="input" 
+            <input
+              type="number"
+              className="input"
               min="1"
               value={settings.defaultDeviceLimit}
-              onChange={(e) => setSettings({...settings, defaultDeviceLimit: e.target.value})}
+              onChange={(e) => setSettings({ ...settings, defaultDeviceLimit: e.target.value })}
               required
             />
           </div>
