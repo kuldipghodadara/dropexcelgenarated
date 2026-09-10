@@ -14,6 +14,9 @@ export default function UserDetailsPage({ params }) {
   const [customExpiry, setCustomExpiry] = useState('');
   const [assigningPlan, setAssigningPlan] = useState(false);
 
+  const [deviceLimit, setDeviceLimit] = useState(2);
+  const [updatingDeviceLimit, setUpdatingDeviceLimit] = useState(false);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -27,7 +30,10 @@ export default function UserDetailsPage({ params }) {
         const userData = await userRes.json();
         if (userData.success) {
           const foundUser = userData.data.find(u => u.uid === uid);
-          if (foundUser) setUser(foundUser);
+          if (foundUser) {
+            setUser(foundUser);
+            setDeviceLimit(foundUser.deviceLimit || 2);
+          }
         }
 
         // Fetch Plans
@@ -92,6 +98,33 @@ export default function UserDetailsPage({ params }) {
       }
     } catch (e) {
       setError('Network error');
+    }
+  };
+
+  const handleDeviceLimitChange = async () => {
+    setUpdatingDeviceLimit(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+      const res = await fetch(`${API_URL}/admin/users/${uid}/deviceLimit`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ deviceLimit })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUser({ ...user, deviceLimit: parseInt(deviceLimit, 10) });
+        alert('Device limit updated successfully!');
+      } else {
+        alert(data.message || 'Failed to update device limit');
+      }
+    } catch (e) {
+      alert('Network error');
+    } finally {
+      setUpdatingDeviceLimit(false);
     }
   };
 
@@ -308,6 +341,49 @@ export default function UserDetailsPage({ params }) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <h3 style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.8rem' }}>Device Management</h3>
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Max Devices Allowed</div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input 
+                type="number" 
+                className="form-input" 
+                style={{ width: '80px', marginBottom: 0 }}
+                min="1"
+                value={deviceLimit}
+                onChange={(e) => setDeviceLimit(e.target.value)}
+              />
+              <button 
+                className="btn btn-primary" 
+                onClick={handleDeviceLimitChange}
+                disabled={updatingDeviceLimit || parseInt(deviceLimit) === (user.deviceLimit || 2)}
+              >
+                {updatingDeviceLimit ? 'Saving...' : 'Update Limit'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.2rem' }}>Active Devices Count</div>
+            <div style={{ fontWeight: 500, fontSize: '1.2rem' }}>{user.activeDevices ? user.activeDevices.length : 0}</div>
+          </div>
+        </div>
+        {user.activeDevices && user.activeDevices.length > 0 && (
+          <div style={{ marginTop: '1.5rem', background: 'var(--bg-main)', padding: '1rem', borderRadius: '6px' }}>
+            <h4 style={{ marginBottom: '0.5rem', fontSize: '0.9rem' }}>Recent Devices</h4>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.85rem' }}>
+              {user.activeDevices.map((d, i) => (
+                <li key={i} style={{ padding: '0.4rem 0', borderBottom: i !== user.activeDevices.length - 1 ? '1px solid var(--border-color)' : 'none', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{d.deviceName || 'Unknown Device'}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Last seen: {new Date(d.lastLoginAt).toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="card">
