@@ -16,22 +16,25 @@
       "output": "release"
     },
     "files": [
-      "src/**/*",
-      "main.js",
-      "preload.js",
-      "package.json",
-      "logo.ico"
+      "**/*",
+      "!.git/**/*",
+      "!README.md",
+      "!.gitignore",
+      "!package-lock.json"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis"
+      ],
       "icon": "logo.ico"
     },
     "nsis": {
       "oneClick": true,
-      "perMachine": false,
+      "perMachine": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Dropbox SKU Excel Generator"
+      "shortcutName": "Dropbox SKU Excel Generator",
+      "artifactName": "${productName} Setup ${version}.${ext}"
     }
   },
   "author": "",
