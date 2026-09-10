@@ -30,8 +30,8 @@ router.post('/register', async (req, res) => {
     });
 
     // Fetch global settings for trial
-    let defaultTrialDays = 7;
-    let defaultDeviceLimit = 2;
+    let defaultTrialDays = 5;
+    let defaultDeviceLimit = 1;
     try {
       const settingsDoc = await db.collection('settings').doc('global').get();
       if (settingsDoc.exists) {
@@ -106,7 +106,7 @@ router.post('/login', async (req, res) => {
     if (/^\d{10}$/.test(identifier)) {
       // First check admin collection
       let userSnapshot = await db.collection('admin').where('mobile', '==', identifier).limit(1).get();
-      
+
       // If not in admin, check users collection
       if (userSnapshot.empty) {
         userSnapshot = await db.collection('users').where('mobile', '==', identifier).limit(1).get();
@@ -136,7 +136,7 @@ router.post('/login', async (req, res) => {
 
     // Fetch user doc to check status. Try 'admin' collection first, then 'users'
     let userDoc = await db.collection('admin').doc(uid).get();
-    
+
     if (!userDoc.exists) {
       userDoc = await db.collection('users').doc(uid).get();
     }
@@ -151,17 +151,17 @@ router.post('/login', async (req, res) => {
     if (userDoc.exists) {
       let activeDevices = userData.activeDevices || [];
       const limit = userData.deviceLimit || 2;
-      
+
       // Remove this device if it already exists to move it to the end (most recent)
       activeDevices = activeDevices.filter(d => d.deviceId !== deviceId);
-      
+
       // Add the current device
       activeDevices.push({
         deviceId,
         deviceName: deviceName || 'Unknown Device',
         lastLoginAt: new Date().toISOString()
       });
-      
+
       // Evict oldest if exceeding limit
       if (activeDevices.length > limit) {
         const overBy = activeDevices.length - limit;
@@ -172,7 +172,7 @@ router.post('/login', async (req, res) => {
         lastLoginAt: new Date().toISOString(),
         activeDevices
       });
-      
+
       userData.activeDevices = activeDevices;
     }
 
