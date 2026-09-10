@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('api', {
   searchFolder: (query) => ipcRenderer.invoke('dropbox:searchFolder', query),
   selectTargetFolder: () => ipcRenderer.invoke('system:selectTargetFolder'),
 
+  // System
+  openExternal: (url) => ipcRenderer.invoke('system:openExternal', url),
+  getVersion: () => ipcRenderer.invoke('system:getVersion'),
+
   // Execution
   generateExcel: (targetFolder) => ipcRenderer.invoke('excel:generate', targetFolder),
   saveExcel: (data) => ipcRenderer.invoke('excel:save', data),

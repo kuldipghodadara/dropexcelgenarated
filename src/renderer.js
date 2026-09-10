@@ -75,6 +75,11 @@ const removeTokenBtn = document.getElementById('removeTokenBtn');
 const downloadPathInput = document.getElementById('downloadPathInput');
 const selectDownloadPathBtn = document.getElementById('selectDownloadPathBtn');
 
+// Footer Links
+const helpLink = document.getElementById('helpLink');
+const labelprimeLink = document.getElementById('labelprimeLink');
+const appVersionTxt = document.getElementById('appVersionTxt');
+
 // State
 let currentPath = '';
 let targetFolder = '';
@@ -84,6 +89,33 @@ let currentUser = null;
 
 // Initialize
 async function init() {
+    if (appVersionTxt && window.api.getVersion) {
+        try {
+            const version = await window.api.getVersion();
+            appVersionTxt.textContent = `Version ${version}`;
+        } catch (e) {
+            console.error('Failed to load version:', e);
+        }
+    }
+
+    if (helpLink) {
+        helpLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (window.api.openExternal) {
+                window.api.openExternal('https://www.labelprime.in/contact');
+            }
+        });
+    }
+
+    if (labelprimeLink) {
+        labelprimeLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (window.api.openExternal) {
+                window.api.openExternal('https://www.labelprime.in/');
+            }
+        });
+    }
+
     await checkAuthSession();
     await loadDownloadPath();
 }
@@ -564,14 +596,14 @@ startGenerationBtn.addEventListener('click', async () => {
         showResults(result.summary);
     } else {
         let errorMsg = result.error || 'Something went wrong. Please check your Dropbox connection and try again.';
-        
+
         // If it's a generic connection error but result.error isn't explicitly set, fallback to defaults
         if (result.error && result.error.includes('sharing permission')) {
             errorMsg = 'Dropbox permission is missing. Please enable sharing permission for your Dropbox app.';
         } else if (result.error && result.error.includes('token')) {
             errorMsg = 'Dropbox token expired. Please update your Dropbox token.';
         }
-        
+
         showError(errorMsg);
         explorerSection.classList.remove('hidden');
     }

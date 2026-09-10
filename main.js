@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
 const { Dropbox } = require('dropbox');
@@ -232,6 +232,14 @@ ipcMain.handle('system:selectTargetFolder', async () => {
     return { success: true, apiPath: apiPath, localPath: selectedPath };
   }
   return { canceled: true };
+});
+
+ipcMain.handle('system:openExternal', async (event, url) => {
+  await shell.openExternal(url);
+});
+
+ipcMain.handle('system:getVersion', () => {
+  return app.getVersion();
 });
 
 function sortNumberedImages(entries) {
