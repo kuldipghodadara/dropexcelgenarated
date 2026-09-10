@@ -1,9 +1,19 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 const { Dropbox } = require('dropbox');
 const ExcelJS = require('exceljs');
 let fetch; // for dropbox
+
+// Initialize machineId for device tracking
+let machineIdSync;
+try {
+  machineIdSync = require('node-machine-id').machineIdSync;
+} catch (e) {
+  // Fallback if not installed yet
+  machineIdSync = () => 'fallback-machine-id-1234';
+}
 
 // Initialize electron-store
 let store;
@@ -92,7 +102,7 @@ async function verifyUserAccess() {
     }
 
     const user = data.data;
-    
+
     // Update cache
     authCache = user;
 
@@ -495,10 +505,14 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
     if (data.success) {
       // Auto-login doesn't give a token from our backend's register route right now, 
       // so we will manually trigger a login call here to get the session token.
+
+      const deviceId = machineIdSync();
+      const deviceName = `${os.hostname()} - ${os.type()}`;
+
       const loginRes = await fetch(`${BACKEND_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: email, password })
+        body: JSON.stringify({ identifier: email, password, deviceId, deviceName })
       });
       const loginData = await loginRes.json();
 
@@ -524,10 +538,13 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
 
 ipcMain.handle('auth:login', async (event, { identifier, password }) => {
   try {
+    const deviceId = machineIdSync();
+    const deviceName = `${os.hostname()} - ${os.type()}`;
+
     const res = await fetch(`${BACKEND_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password })
+      body: JSON.stringify({ identifier, password, deviceId, deviceName })
     });
 
     const data = await res.json();
@@ -555,10 +572,15 @@ ipcMain.handle('auth:checkSession', async () => {
   const session = store.get('auth_session');
   if (session && session.token) {
     try {
+      const deviceId = machineIdSync();
+
       // Try to fetch fresh user data from the backend
       const res = await fetch(`${BACKEND_URL}/auth/me`, {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${session.token}` }
+        headers: {
+          'Authorization': `Bearer ${session.token}`,
+          'x-device-id': deviceId
+        }
       });
       const data = await res.json();
       if (data.success) {
@@ -577,7 +599,7 @@ ipcMain.handle('auth:checkSession', async () => {
     } catch (err) {
       console.log('Network unavailable, falling back to cached session');
     }
-    
+
     // Fallback to cached user data if network fails
     if (session.user) {
       return { success: true, user: session.user };

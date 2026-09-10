@@ -43,7 +43,8 @@
     "dropbox": "^10.46.0",
     "electron-store": "^8.2.0",
     "exceljs": "^4.4.0",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "node-machine-id": "^1.1.12"
   },
   "devDependencies": {
     "electron": "^32.1.2",
