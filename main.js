@@ -59,9 +59,80 @@ function getDbx(token) {
   return new Dropbox({ accessToken: token, fetch: fetch });
 }
 
+// Authentication System
+const BACKEND_URL = 'http://localhost:5000/api';
+
+let authCache = null;
+
+/**
+ * Verifies if the current user is active and their plan is not expired.
+ * Calls the backend /auth/me to get live status, preventing blocked users from taking actions.
+ */
+async function verifyUserAccess() {
+  const session = store.get('auth_session');
+  if (!session || !session.token) {
+    throw new Error('You must be logged in to perform this action.');
+  }
+
+  // Use memory cache indefinitely for the app session to avoid spamming backend
+  if (authCache) {
+    validateUserRules(authCache);
+    return true;
+  }
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/auth/me`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${session.token}` }
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      throw new Error(data.message || 'Authentication failed. Please log in again.');
+    }
+
+    const user = data.data;
+    
+    // Update cache
+    authCache = user;
+
+    validateUserRules(user);
+
+    return true;
+  } catch (error) {
+    if (error.message.includes('fetch') || error.message.includes('network')) {
+      throw new Error('Network error. Please ensure you have an active internet connection to verify your account.');
+    }
+    throw error;
+  }
+}
+
+function validateUserRules(user) {
+  if (user.status === 'blocked' || user.status === 'suspended') {
+    throw new Error(`Account (${user.email}) has been ${user.status}. Please contact support.`);
+  }
+
+  if (!user.planType && user.role !== 'admin') {
+    throw new Error(`Account (${user.email}) does not have an active subscription plan. Please assign one in the Admin Panel.`);
+  }
+
+  if (user.planExpiryDate && user.planType !== 'lifetime') {
+    const expiry = new Date(user.planExpiryDate);
+    if (new Date() > expiry) {
+      throw new Error('Your subscription plan has expired. Please contact support to renew.');
+    }
+  }
+}
+
 // IPC Handlers
 
 ipcMain.handle('dropbox:getTokenStatus', async () => {
+  try {
+    await verifyUserAccess();
+  } catch (error) {
+    return { connected: false, error: error.message };
+  }
+
   const token = store.get('dropboxToken');
   if (!token) return { connected: false };
 
@@ -76,12 +147,14 @@ ipcMain.handle('dropbox:getTokenStatus', async () => {
 
 ipcMain.handle('dropbox:setToken', async (event, token) => {
   try {
+    await verifyUserAccess();
+
     const dbx = getDbx(token);
     await dbx.usersGetCurrentAccount();
     store.set('dropboxToken', token);
     return { success: true, tokenMasked: '••••••••••••' + token.slice(-4) };
   } catch (error) {
-    return { success: false, error: 'Invalid token' };
+    return { success: false, error: error.message || 'Invalid token' };
   }
 });
 
@@ -91,10 +164,11 @@ ipcMain.handle('dropbox:removeToken', async () => {
 });
 
 ipcMain.handle('dropbox:listFolder', async (event, folderPath) => {
-  const token = store.get('dropboxToken');
-  if (!token) throw new Error('Not connected');
-
   try {
+    await verifyUserAccess();
+    const token = store.get('dropboxToken');
+    if (!token) throw new Error('Not connected');
+
     const dbx = getDbx(token);
     const response = await dbx.filesListFolder({ path: folderPath === '/' ? '' : folderPath });
 
@@ -107,10 +181,11 @@ ipcMain.handle('dropbox:listFolder', async (event, folderPath) => {
 });
 
 ipcMain.handle('dropbox:searchFolder', async (event, query) => {
-  const token = store.get('dropboxToken');
-  if (!token) throw new Error('Not connected');
-
   try {
+    await verifyUserAccess();
+    const token = store.get('dropboxToken');
+    if (!token) throw new Error('Not connected');
+
     const dbx = getDbx(token);
     const response = await dbx.filesSearchV2({ query });
 
@@ -211,11 +286,12 @@ async function getSharedLink(dbx, dbxPath) {
 }
 
 ipcMain.handle('excel:generate', async (event, targetFolder) => {
-  const token = store.get('dropboxToken');
-  if (!token) throw new Error('Not connected');
-  const dbx = getDbx(token);
-
   try {
+    await verifyUserAccess();
+    const token = store.get('dropboxToken');
+    if (!token) throw new Error('Not connected');
+    const dbx = getDbx(token);
+
     event.sender.send('progress:update', { stage: 'scanning_skus', message: 'Scanning SKU folders...' });
 
     // Get immediate child folders (SKUs)
@@ -326,6 +402,12 @@ ipcMain.handle('excel:getDownloadFolder', async () => {
 });
 
 ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targetFolderName }) => {
+  try {
+    await verifyUserAccess();
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+
   const manualPath = store.get('downloadPath');
 
   const now = new Date();
@@ -390,9 +472,7 @@ ipcMain.handle('excel:save', async (event, { data, maxImages, targetFolder, targ
   }
 });
 
-// Authentication System
-
-const BACKEND_URL = 'https://dropexcelgenarated.vercel.app/api';
+// Authentication System handled at the top
 
 ipcMain.handle('auth:register', async (event, { name, mobile, email, password }) => {
   try {
@@ -416,12 +496,14 @@ ipcMain.handle('auth:register', async (event, { name, mobile, email, password })
 
       if (loginData.success) {
         store.set('auth_session', { user: loginData.data, token: loginData.token });
+        authCache = loginData.data;
         return { success: true, user: loginData.data };
       }
 
       // If auto-login fails, save a local session anyway with the provided data
       const fallbackUser = { ...data.data, displayName: name, mobile: mobile };
       store.set('auth_session', { user: fallbackUser, token: null });
+      authCache = fallbackUser;
       return { success: true, user: fallbackUser };
     } else {
       return { success: false, error: data.message };
@@ -444,6 +526,7 @@ ipcMain.handle('auth:login', async (event, { identifier, password }) => {
 
     if (data.success) {
       store.set('auth_session', { user: data.data, token: data.token });
+      authCache = data.data;
       return { success: true, user: data.data };
     } else {
       return { success: false, error: data.message };
@@ -456,17 +539,40 @@ ipcMain.handle('auth:login', async (event, { identifier, password }) => {
 
 ipcMain.handle('auth:logout', async () => {
   store.delete('auth_session');
+  authCache = null;
   return { success: true };
 });
 
 ipcMain.handle('auth:checkSession', async () => {
   const session = store.get('auth_session');
-  if (session) {
+  if (session && session.token) {
+    try {
+      // Try to fetch fresh user data from the backend
+      const res = await fetch(`${BACKEND_URL}/auth/me`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${session.token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update local storage with fresh data (e.g. updated plans)
+        session.user = data.data;
+        store.set('auth_session', session);
+        authCache = data.data;
+        return { success: true, user: data.data };
+      } else if (res.status === 401 || res.status === 403) {
+        // Token is invalid, blocked, or stale. Force logout.
+        store.delete('auth_session');
+        authCache = null;
+        lastAuthCheck = 0;
+        return { success: false };
+      }
+    } catch (err) {
+      console.log('Network unavailable, falling back to cached session');
+    }
+    
+    // Fallback to cached user data if network fails
     if (session.user) {
       return { success: true, user: session.user };
-    } else if (session.email) {
-      // Fallback for older local sessions
-      return { success: true, user: session };
     }
   }
   return { success: false };

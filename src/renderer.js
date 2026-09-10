@@ -359,7 +359,7 @@ saveTokenBtn.addEventListener('click', async () => {
             settingsModal.classList.add('hidden');
             updateConnectionUI({ connected: true, tokenMasked: status.tokenMasked });
         } else {
-            showError('Dropbox token expired or invalid. Please update your Dropbox token.');
+            showError(status.error || 'Dropbox token expired or invalid. Please update your Dropbox token.');
             settingsModal.classList.add('hidden');
         }
     } else {
@@ -563,12 +563,15 @@ startGenerationBtn.addEventListener('click', async () => {
         currentMaxImages = result.maxImages;
         showResults(result.summary);
     } else {
-        let errorMsg = 'Something went wrong. Please check your Dropbox connection and try again.';
+        let errorMsg = result.error || 'Something went wrong. Please check your Dropbox connection and try again.';
+        
+        // If it's a generic connection error but result.error isn't explicitly set, fallback to defaults
         if (result.error && result.error.includes('sharing permission')) {
             errorMsg = 'Dropbox permission is missing. Please enable sharing permission for your Dropbox app.';
         } else if (result.error && result.error.includes('token')) {
             errorMsg = 'Dropbox token expired. Please update your Dropbox token.';
         }
+        
         showError(errorMsg);
         explorerSection.classList.remove('hidden');
     }
@@ -608,7 +611,7 @@ downloadExcelBtn.addEventListener('click', async () => {
         saveSuccessMsg.textContent = `✓ Excel saved to: ${res.filePath}`;
         downloadExcelBtn.textContent = 'Save Again';
     } else if (!res.canceled) {
-        showError('Something went wrong saving the file. Please check permissions and try again.');
+        showError(res.error || 'Something went wrong saving the file. Please check permissions and try again.');
     }
 });
 
