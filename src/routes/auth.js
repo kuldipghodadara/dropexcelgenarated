@@ -138,4 +138,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/me
+ * Returns the current authenticated user's profile and live status
+ */
+const { requireAuth } = require('../middleware/auth');
+router.get('/me', requireAuth, async (req, res) => {
+  // requireAuth already checks the 'admin' or 'users' collection and populates req.user
+  return res.status(200).json({ success: true, data: req.user });
+});
+
 module.exports = router;

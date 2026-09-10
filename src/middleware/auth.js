@@ -29,8 +29,8 @@ const requireAuth = async (req, res, next) => {
       }
       req.user = { uid: uid, ...userData };
     } else {
-      // If user document not found, default to standard user
-      req.user = { uid: uid, role: 'user' };
+      // If user document not found, the token/UID is invalid or stale
+      return res.status(401).json({ success: false, message: 'Unauthorized: User not found. Please log in again.' });
     }
 
     next();

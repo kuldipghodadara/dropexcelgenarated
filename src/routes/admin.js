@@ -114,4 +114,60 @@ router.put('/users/:uid/role', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/admin/users/:uid/plan
+ * Assign a plan to a user
+ */
+router.put('/users/:uid/plan', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { planId, planName, type, expiryDate } = req.body;
+
+    if (!planId || !planName || !type) {
+      return res.status(400).json({ success: false, message: 'planId, planName, and type are required' });
+    }
+
+    let calculatedExpiry = null;
+    const now = new Date();
+
+    if (expiryDate) {
+      // Allow overriding the expiry date for any plan
+      // Set to 23:59:59.999 to ensure they get the full final day of access
+      const d = new Date(expiryDate);
+      d.setUTCHours(23, 59, 59, 999);
+      calculatedExpiry = d.toISOString();
+    } else {
+      if (req.body.durationMonths) {
+        now.setMonth(now.getMonth() + parseInt(req.body.durationMonths, 10));
+        calculatedExpiry = now.toISOString();
+      } else if (type === 'monthly') {
+        now.setMonth(now.getMonth() + 1);
+        calculatedExpiry = now.toISOString();
+      } else if (type === 'yearly') {
+        now.setFullYear(now.getFullYear() + 1);
+        calculatedExpiry = now.toISOString();
+      } else if (type === 'custom') {
+        return res.status(400).json({ success: false, message: 'expiryDate is required for custom plans' });
+      }
+      // lifetime remains null
+    }
+
+    const updateData = {
+      planId,
+      planName,
+      planType: type,
+      planExpiryDate: calculatedExpiry,
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.collection('users').doc(uid).update(updateData);
+    await logAdminAction(req.user.uid, 'USER_PLAN_ASSIGNED', uid, { planId, planName, expiryDate: calculatedExpiry });
+
+    return res.status(200).json({ success: true, message: 'Plan assigned successfully', data: updateData });
+  } catch (error) {
+    console.error('Assign Plan Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to assign plan' });
+  }
+});
+
 module.exports = router;

@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
+const plansRoutes = require('./routes/plans');
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/', apiLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/plans', plansRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Health Check
